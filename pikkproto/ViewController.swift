@@ -9,11 +9,23 @@ import UIKit
 
 class ViewController: UIViewController {
 
+    let trackLogic = CameraViewController()
+    let gameUI = GameViewController()
+    
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Do any additional setup after loading the view.
+        
+        addChild(gameUI)
+        view.addSubview(gameUI.view)
+        gameUI.didMove(toParent: self)
+        
+        view.backgroundColor = .white
+        
+        trackLogic.viewDidLoad()
+        
+//        trackLogic.onUpdate = { [weak self] newFrame in
+//            self?.gameUI.updateBoxFrame(newFrame)
+        
     }
-
-
 }
 
