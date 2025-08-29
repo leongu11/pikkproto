@@ -9,8 +9,8 @@ import UIKit
 import AVFoundation
 import Vision
 
-
 //for camera inputs
+var globalDir: String = "none"
 
 class CameraViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     var captureSession: AVCaptureSession!
@@ -20,12 +20,23 @@ class CameraViewController: UIViewController, AVCaptureVideoDataOutputSampleBuff
     let maxFrames = 25
     var xBuffer = [CGFloat]()
     var yBuffer = [CGFloat]()
-    var vXBuffer = [CGFloat]()
-    var vYBuffer = [CGFloat]()
+    var vXTBuffer = [CGFloat]()
+    var vYTBuffer = [CGFloat]()
+    var vXMBuffer = [CGFloat]()
+    var vYMBuffer = [CGFloat]()
     var prevDir = "none"
+    var dir = "none"
     var prevX = 0.0
     var prevY = 0.0
+    var prevXT = 0.0
+    var prevXM = 0.0
+    var prevYT = 0.0
+    var prevYM = 0.0
+    var prevprevX = 0.0
+    var prevprevY = 0.0
     
+    var onDirectionUpdate: ((String) -> Void)?
+
     override func viewDidLoad() {
         super.viewDidLoad()
         
@@ -108,23 +119,36 @@ class CameraViewController: UIViewController, AVCaptureVideoDataOutputSampleBuff
                 
                 if indexT.confidence > 0.5 && indexM.confidence > 0.5 {
                     
-                    let vX = (indexT.location.x+indexM.location.x)/2.0-prevX
-                    let vY = (indexT.location.y+indexM.location.y)/2.0-prevY
+                    let vX = (indexT.location.x+indexM.location.x)/2.0-prevprevX
+                    let vY = (indexT.location.y+indexM.location.y)/2.0-prevprevY
+                    let vXT = indexT.location.x - prevXT
+                    let vXM = indexM.location.x - prevXM
+                    let vYT = indexT.location.y - prevYT
+                    let vYM = indexM.location.y - prevYM
                     let totVel = pow(pow(vX,2.0)+pow(vY,2.0),0.5)
                     //print("Current",index.location.x,index.location.y)
                     //print("Previous",prevX,prevY)
                     //print("Velocity",vX,vY,totVel)
-                    if totVel > 0.065 && indexM.location.x > 0.2 && indexM.location.x < 0.8  && indexM.location.y > 0.1 && indexM.location.y < 0.4 {
-                        //print("Buffer Count:", xBuffer.count+1)
-                        xBuffer.append(((indexT.location.x+indexM.location.x)/2.0+prevX)/2.0)
-                        yBuffer.append(((indexT.location.y+indexM.location.y)/2.0+prevY)/2.0)
-                        vXBuffer.append(vX)
-                        vYBuffer.append(vY)
+                    if totVel > 0.035 && indexM.location.x > 0.2 && indexM.location.x < 0.8  && indexM.location.y > 0.0 && indexM.location.y < 0.6 {
+                    //if totVel > 0.035 {
+                            //print("Buffer Count:", xBuffer.count+1)
+                        xBuffer.append(((indexT.location.x+indexM.location.x)/2.0+prevX+prevprevX)/3.0)
+                        yBuffer.append(((indexT.location.y+indexM.location.y)/2.0+prevY+prevprevY)/3.0)
+                        vXTBuffer.append(vXT)
+                        vYTBuffer.append(vYT)
+                        vXMBuffer.append(vXM)
+                        vYMBuffer.append(vYM)
                         //print("XBuffer",xBuffer)
                         //print("YBuffer",yBuffer)
                         prevX = (indexT.location.x+indexM.location.x)/2.0
                         prevY = (indexT.location.y+indexM.location.y)/2.0
-                        
+                        prevprevX = prevX
+                        prevprevY = prevY
+                        prevXT = indexT.location.x
+                        prevYT = indexT.location.y
+                        prevXM = indexM.location.x
+                        prevYM = indexM.location.y
+
                         if xBuffer.count > maxFrames {
                             xBuffer.removeFirst(xBuffer.count - maxFrames)
                         }
@@ -136,34 +160,38 @@ class CameraViewController: UIViewController, AVCaptureVideoDataOutputSampleBuff
                     }
                     else {
                         
-                        if xBuffer.count > 2 && yBuffer.count > 2 {
-                            Detecting(xBuffer: xBuffer, yBuffer: yBuffer)
+                        if xBuffer.count > 3 && yBuffer.count > 3 {
+                            Detecting(xBuffer: xBuffer, yBuffer: yBuffer, vXTBuffer: vXTBuffer, vYTBuffer: vYTBuffer, vXMBuffer: vXMBuffer, vYMBuffer: vYMBuffer)
                         }
-                        
+
                         xBuffer.removeAll()
                         yBuffer.removeAll()
-                        vXBuffer.removeAll()
-                        vYBuffer.removeAll()
+                        vXTBuffer.removeAll()
+                        vYTBuffer.removeAll()
+                        vXMBuffer.removeAll()
+                        vYMBuffer.removeAll()
                     }
                 }
                 else {
-                    if xBuffer.count > 2 && yBuffer.count > 2 {
-                        Detecting(xBuffer: xBuffer, yBuffer: yBuffer)
+                    if xBuffer.count > 3 && yBuffer.count > 3 {
+                        Detecting(xBuffer: xBuffer, yBuffer: yBuffer, vXTBuffer: vXTBuffer, vYTBuffer: vYTBuffer, vXMBuffer: vXMBuffer, vYMBuffer: vYMBuffer)
                     }
                     xBuffer.removeAll()
                     yBuffer.removeAll()
-                    vXBuffer.removeAll()
-                    vYBuffer.removeAll()
+                    vXTBuffer.removeAll()
+                    vYTBuffer.removeAll()
+                    vXMBuffer.removeAll()
+                    vYMBuffer.removeAll()
                 }
             }
         }
     }
-    func Detecting(xBuffer: Array<CGFloat>, yBuffer: Array<CGFloat>) {
+
+    func Detecting(xBuffer: Array<CGFloat>, yBuffer: Array<CGFloat>, vXTBuffer: Array<CGFloat>, vYTBuffer: Array<CGFloat>, vXMBuffer: Array<CGFloat>, vYMBuffer: Array<CGFloat>) {
         if let xBufF = xBuffer.first, let xBufL = xBuffer.last, let yBufF = yBuffer.first, let yBufL = yBuffer.last {
             let disY = yBufF - yBufL
             let disX = xBufF - xBufL
             //print("distances",disX,disY)
-            var dir = "none"
             var differentiateFlag = "none"
             
             if abs(disX) > 2.0*abs(disY) {
@@ -175,28 +203,35 @@ class CameraViewController: UIViewController, AVCaptureVideoDataOutputSampleBuff
             }
             
             if differentiateFlag == "horiz" {
-                if disX <= -0.04 {
+                if disX <= -0.03 && xBuffer[0] < xBuffer[1] && xBuffer[1] < xBuffer[2] {
                     dir = "right"
                 }
-                else if disX >= 0.04 {
+                else if disX >= 0.06 && xBuffer[0] > xBuffer[1] && xBuffer[1] > xBuffer[2] {
                     dir = "left"
+                }
+                else {
+                    dir = "none"
                 }
             }
             else if differentiateFlag == "vert" {
-                if disY <= -0.0 {
+                if disY <= -0.0 && yBuffer[0] < yBuffer[1] && yBuffer[1] < yBuffer[2] {
                     dir = "up"
                 }
-                else if disY >= 0.02 {
+                else if disY >= 0.0 && yBuffer[0] > yBuffer[1] && yBuffer[1] > yBuffer[2] {
                     dir = "down"
+                }
+                else {
+                    dir = "none"
                 }
             }
             else {dir = "none"}
                         
 
-
+//
             DispatchQueue.main.async {
-                if dir != "none" {
-                    print("Direction",dir)
+                if self.dir != "none" {
+                    self.onDirectionUpdate?(self.dir)
+//                    print("Direction",self.dir)
                 }
             }
         }

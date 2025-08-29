@@ -8,7 +8,7 @@
 import UIKit
 
 class ViewController: UIViewController {
-
+    
     let trackLogic = CameraViewController()
     let gameUI = GameViewController()
     
@@ -22,10 +22,10 @@ class ViewController: UIViewController {
         view.backgroundColor = .white
         
         trackLogic.viewDidLoad()
-        
+        trackLogic.onDirectionUpdate = { [weak self] newDir in self?.gameUI.updateDirection(newDir) }
+
 //        trackLogic.onUpdate = { [weak self] newFrame in
 //            self?.gameUI.updateBoxFrame(newFrame)
         
     }
 }
-
